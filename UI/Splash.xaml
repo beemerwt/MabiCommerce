@@ -40,7 +40,7 @@
 				</Grid.RowDefinitions>
 
 				<TextBlock TextAlignment="Center" FontWeight="Bold" FontSize="28">Mabi Commerce</TextBlock>
-				<TextBlock Grid.Row="1" TextAlignment="Center" FontSize="18">By Xcelled194</TextBlock>
+				<TextBlock Grid.Row="1" TextAlignment="Center" FontSize="18">By Xcelled194 and Beemer</TextBlock>
 
 				<ProgressBar Name="Progress" Minimum="0" Maximum="1" Grid.Row="3" Height="20" />
 				<TextBlock Name="Message" Grid.Row="4" Text="Loading..."/>
