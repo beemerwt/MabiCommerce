@@ -13,6 +13,9 @@ This has been a long time coming for this app, and pretty much the whole reason 
 ### Add the big "Commerce Update"
 Mabinogi has added a whole lot to commerce since 2022. I plan to add the new routes (Filia, Vales, etc), the new transportation methods (Dog Sled, Camel, etc.), and new items. This will take a while as the routes are very lengthy, so bare with me.
 
+### Screen Reader
+I want to add a screen reader to the application. The old method of reading packets is outdated when we can just as easily take a screenshot of the window and keep track of the numbers. This is the most uninvasive method of keeping track of prices and will not be detected by the game.
+
 ### Reformat the Application
 There are quite a few UI changes that I want to make because, while it looks great in it's own right, I believe it could look better.
 
