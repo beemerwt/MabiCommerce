@@ -5,8 +5,6 @@ VisualStudioVersion = 17.7.34024.191
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MabiCommerce", "MabiCommerce.csproj", "{8E7F24A1-92A5-40E6-AE13-EA9FB88B5FBA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WaypointViewer", "WaypointViewer\WaypointViewer.csproj", "{AF6DC601-A278-4E12-9F0E-581CF7277E33}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".build", ".build", "{3FD0A119-16BD-49D1-A894-F3578D1FAA66}"
 	ProjectSection(SolutionItems) = preProject
 		Build.proj = Build.proj
@@ -22,9 +20,6 @@ Global
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{8E7F24A1-92A5-40E6-AE13-EA9FB88B5FBA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{8E7F24A1-92A5-40E6-AE13-EA9FB88B5FBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{AF6DC601-A278-4E12-9F0E-581CF7277E33}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{AF6DC601-A278-4E12-9F0E-581CF7277E33}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{AF6DC601-A278-4E12-9F0E-581CF7277E33}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
