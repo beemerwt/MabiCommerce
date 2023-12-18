@@ -366,7 +366,7 @@
         "Name": "Mini Dressing Table",
         "Image": "data/img/item/mini_dressing_table.png",
         "Weight": 15,
-        "QuantityPerSlot": 15,
+        "QuantityPerSlot": 10,
         "MerchantRating": 1,
         "MultiFactor": 1.2,
         "AddFactor": 17.1,
