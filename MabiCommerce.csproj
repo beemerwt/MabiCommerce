@@ -10,6 +10,7 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <DefineConstants>$(DefineConstants);BITMAP_FONT</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -17,6 +18,29 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="data\img\bitmap\0.png" />
+    <None Remove="data\img\bitmap\1.png" />
+    <None Remove="data\img\bitmap\2.png" />
+    <None Remove="data\img\bitmap\3.png" />
+    <None Remove="data\img\bitmap\4.png" />
+    <None Remove="data\img\bitmap\5.png" />
+    <None Remove="data\img\bitmap\6.png" />
+    <None Remove="data\img\bitmap\7.png" />
+    <None Remove="data\img\bitmap\8.png" />
+    <None Remove="data\img\bitmap\9.png" />
+    <None Remove="data\img\bitmap\bangor.png" />
+    <None Remove="data\img\bitmap\belvast.png" />
+    <None Remove="data\img\bitmap\cobh.png" />
+    <None Remove="data\img\bitmap\cor.png" />
+    <None Remove="data\img\bitmap\dunbarton.png" />
+    <None Remove="data\img\bitmap\emain_macha.png" />
+    <None Remove="data\img\bitmap\filia.png" />
+    <None Remove="data\img\bitmap\profit.png" />
+    <None Remove="data\img\bitmap\qilla.png" />
+    <None Remove="data\img\bitmap\tailltean.png" />
+    <None Remove="data\img\bitmap\tara.png" />
+    <None Remove="data\img\bitmap\tir_chonaill.png" />
+    <None Remove="data\img\bitmap\vales.png" />
     <None Remove="UI\Images\BanditAmbush.png" />
     <None Remove="UI\Images\BtnBg.png" />
     <None Remove="UI\Images\Close.png" />
@@ -36,6 +60,75 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="data\img\bitmap\0.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\2.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\3.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\4.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\5.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\6.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\7.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\8.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\9.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\bangor.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\belvast.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\cobh.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\cor.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\dunbarton.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\emain_macha.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\filia.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\profit.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\qilla.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\tailltean.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\tara.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\tir_chonaill.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\img\bitmap\vales.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="MabiCommerce.ico" />
     <Content Include="UI\Images\BanditAmbush.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -87,6 +180,7 @@
   <ItemGroup>
     <PackageReference Include="Emgu.CV" Version="4.8.1.5350" />
     <PackageReference Include="Emgu.CV.Bitmap" Version="4.8.1.5350" />
+    <PackageReference Include="Emgu.CV.runtime.windows" Version="4.8.1.5350" />
     <PackageReference Include="QuikGraph" Version="2.5.0" />
   </ItemGroup>
 

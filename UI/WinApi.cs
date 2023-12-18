@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -10,8 +11,11 @@ public class WinApi
     private const uint WINEVENT_OUTOFCONTEXT = 0;
     private const uint EVENT_SYSTEM_FOREGROUND = 3;
 
-    delegate void OnForegroundWindowChanged();
+    public delegate void ForegroundWindowChangedDelegate();
     delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool RegisterHotKey(IntPtr hwnd, int id, int fsModifiers, int vk);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
@@ -44,13 +48,27 @@ public class WinApi
     private IntPtr hWnd = IntPtr.Zero;
     private IntPtr m_hhook = IntPtr.Zero;
 
-    private WinEventDelegate dele = null;
-    private OnForegroundWindowChanged m_onForegroundWindowChanged = null;
+    private WinEventDelegate? dele = null;
+    private ForegroundWindowChangedDelegate? m_onForegroundWindowChanged = null;
+
+    public Rectangle ClientBounds;
+    public event ForegroundWindowChangedDelegate OnForegroundWindowChanged
+    {
+        add
+        {
+            m_onForegroundWindowChanged += value;
+        }
+        remove
+        {
+            m_onForegroundWindowChanged -= value;
+        }
+    }
 
     private WinApi()
 	{
         dele = new WinEventDelegate(ForegroundWindowChanged);
         m_hhook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, dele, 0, 0, WINEVENT_OUTOFCONTEXT);
+        ClientBounds = new(0, 0, 0, 0);
     }
 
 	~WinApi()
@@ -62,7 +80,7 @@ public class WinApi
 	public static WinApi Instance { get; private set; } = new WinApi();
     public static bool IsMabiActive { get { return Instance.hWnd != IntPtr.Zero; } }
 
-    private string GetActiveWindowTitle(IntPtr hwnd)
+    private string? GetActiveWindowTitle(IntPtr hwnd)
     {
         const int nChars = 256;
         StringBuilder Buff = new StringBuilder(nChars);
@@ -82,48 +100,10 @@ public class WinApi
             return;
 
         hWnd = hwnd;
+
+        GetWindowRect(new HandleRef(this, hwnd), out RECT rect);
+        ClientBounds = new(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+
         m_onForegroundWindowChanged?.Invoke();
     }
-
-    /// <summary>
-    /// Custom, returns list of all windows with given title,
-    /// utilizing FindWindowEx and GetClassName.
-    /// </summary>
-    /// <returns></returns>
-    /*
-    public List<FoundWindow> FindAllWindows(string windowName)
-	{
-		var result = new List<FoundWindow>();
-
-		var hWnd = IntPtr.Zero;
-		do
-		{
-			if ((hWnd = FindWindow(null, "Mabinogi")) != IntPtr.Zero)
-			{
-				var window = new FoundWindow { HWnd = hWnd, WindowName = windowName };
-
-				var className = new StringBuilder(255);
-				GetClassName(hWnd, className, className.Capacity);
-				window.ClassName = className.ToString();
-
-				result.Add(window);
-			}
-		}
-		while (hWnd != IntPtr.Zero);
-
-		return result;
-	}
-    */
-}
-
-public class FoundWindow
-{
-	public IntPtr HWnd { get; set; }
-	public string ClassName { get; set; }
-	public string WindowName { get; set; }
-
-	public override string ToString()
-	{
-		return ClassName;
-	}
 }

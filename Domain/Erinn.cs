@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Security.Policy;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
@@ -23,7 +24,6 @@ namespace MabiCommerce.Domain
 		public ObservableCollection<TradingPost> Posts { get; private set; }
 		public ObservableCollection<Trade> Trades { get; private set; }
 		public ObservableCollection<Modifier> Modifiers { get; private set; }
-
 		public List<CommerceMasteryRank> CommerceMasteryRanks { get; private set; }
 		public List<Region> Regions { get; private set; }
 		public List<Portal> Portals { get; private set; }
@@ -41,7 +41,7 @@ namespace MabiCommerce.Domain
 			}
 		}
 
-		private CommerceMasteryRank? _cmRank;
+		private CommerceMasteryRank _cmRank;
 		public CommerceMasteryRank CmRank
 		{
 			get { return _cmRank; }
@@ -52,33 +52,12 @@ namespace MabiCommerce.Domain
 			}
 		}
 
-		private readonly ConcurrentDictionary<Waypoint, ConcurrentDictionary<Waypoint, Route>> _routeCache =
-			new ConcurrentDictionary<Waypoint, ConcurrentDictionary<Waypoint, Route>>();
+		private readonly ConcurrentDictionary<Waypoint, ConcurrentDictionary<Waypoint, Route>> _routeCache = new();
 
-		public Erinn()
+		public Erinn(string dataDir, Action<double, string>? progress = null)
 		{
-			if (DesignerProperties.GetIsInDesignMode(new DependencyObject()))
-			{
-				if (!Directory.Exists("data"))
-					Environment.CurrentDirectory = Path.GetFullPath("MabiCommerce");
-				
-				Load("data", this);
-			}
-		}
-
-		public static Erinn Load(string dataDir, Action<double, string> progress = null)
-		{
-			var e = new Erinn();
-
-			Load(dataDir, e, progress);
-
-			return e;
-		}
-
-		private static void Load(string dataDir, Erinn e, Action<double, string> progress = null)
-		{
-			if (progress == null)
-				progress = (d, s) => { };
+			Trades = new ObservableCollection<Trade>();
+            progress ??= (d, s) => { };
 
 			var total = 6.0;
 			var done = 0;
@@ -97,19 +76,19 @@ namespace MabiCommerce.Domain
 			string data = File.ReadAllText(Path.Combine(dataDir, "db/transports.json"));
 			var transportList = JsonSerializer.Deserialize<List<Transportation>>(data, opts)
 				?? throw new Exception("Failed to load transports.");
-            e.Transports = new ObservableCollection<Transportation>(transportList);
+            Transports = new ObservableCollection<Transportation>(transportList);
             done++;
 
 			progress(done / total, "Loading modifiers...");
 			var modifiers = File.ReadAllText(Path.Combine(dataDir, "db/modifiers.json"));
 			var modifierList = JsonSerializer.Deserialize<List<Modifier>>(modifiers, opts)
                 ?? throw new Exception("Failed to load modifiers.");
-            e.Modifiers = new ObservableCollection<Modifier>(modifierList);
+            Modifiers = new ObservableCollection<Modifier>(modifierList);
 			done++;
 
 			progress(done / total, "Loading commerce mastery ranks...");
 			var masteryRanks = File.ReadAllText(Path.Combine(dataDir, "db/commerce_mastery_ranks.json"));
-            e.CommerceMasteryRanks = JsonSerializer.Deserialize<List<CommerceMasteryRank>>(masteryRanks, opts)
+            CommerceMasteryRanks = JsonSerializer.Deserialize<List<CommerceMasteryRank>>(masteryRanks, opts)
                 ?? throw new Exception("Failed to load commerce mastery ranks.");
             done++;
 
@@ -117,103 +96,127 @@ namespace MabiCommerce.Domain
 			var posts = File.ReadAllText(Path.Combine(dataDir, "db/posts.json"));
 			var postList = JsonSerializer.Deserialize<List<TradingPost>>(posts, opts)
 				?? throw new Exception("Failed to load posts.");
-            e.Posts = new ObservableCollection<TradingPost>(postList);
+            Posts = new ObservableCollection<TradingPost>(postList);
             done++;
 
 			progress(done / total, "Loading regions...");
 			var regions = File.ReadAllText(Path.Combine(dataDir, "db/regions.json"));
-            e.Regions = JsonSerializer.Deserialize<List<Region>>(regions, opts)
+            Regions = JsonSerializer.Deserialize<List<Region>>(regions, opts)
                 ?? throw new Exception("Failed to load regions.");
 			done++;
 
 			progress(done / total, "Loading portals...");
 			var portals = File.ReadAllText(Path.Combine(dataDir, "db/portals.json"));
-			e.Portals = JsonSerializer.Deserialize<List<Portal>>(portals, opts)
+			Portals = JsonSerializer.Deserialize<List<Portal>>(portals, opts)
                 ?? throw new Exception("Failed to load portals.");
 			done++;
 
 			progress(done / total, "Loading merchant levels...");
 			var merchantLevels = File.ReadAllText(Path.Combine(dataDir, "db/merchant_levels.json"));
-            e.MerchantLevels = JsonSerializer.Deserialize<List<MerchantLevel>>(merchantLevels, opts)
+            MerchantLevels = JsonSerializer.Deserialize<List<MerchantLevel>>(merchantLevels, opts)
                 ?? throw new Exception("Failed to load merchant levels.");
 			done++;
 
 			progress(0, "Initializing data...");
-			e.Trades = new ObservableCollection<Trade>();
-			e.World = new AdjacencyGraph<Waypoint, Connection>();
-			e.CmRank = e.CommerceMasteryRanks.First();
+			World = new AdjacencyGraph<Waypoint, Connection>();
+			CmRank = CommerceMasteryRanks.First();
 
-			var lowestMerch = e.MerchantLevels.OrderBy(m => m.Level).First();
+			var lowestMerch = MerchantLevels.OrderBy(m => m.Level).First();
 
-			foreach (var p in e.Posts)
+			foreach (var p in Posts)
 				p.MerchantLevel = lowestMerch;
 
-			InitializeProfits(e);
-			MapWorld(e, progress);
+            LoadSaveData(opts, out List<ItemData>? itemDatas);
+            InitializeProfits(itemDatas);
+			MapWorld(progress);
 		}
 
-		private static void MapWorld(Erinn e, Action<double, string> progress)
-		{
-			foreach (var region in e.Regions)
-				e.World.AddVerticesAndEdgeRange(region.RegionGraph.Edges);
+		private void LoadSaveData(JsonSerializerOptions opts, out List<ItemData>? itemDatas)
+        {
+            itemDatas = null;
+			if (!File.Exists("save.json"))
+				return;
 
-			foreach (var portal in e.Portals)
+            var saveData = File.ReadAllText("save.json");
+            var save = JsonSerializer.Deserialize<SaveData>(saveData, opts)
+                ?? throw new Exception("Failed to load save data.");
+
+            itemDatas = save.Items;
+            Ducats = save.Ducats;
+
+            foreach (var transport in Transports)
+				transport.Enabled = transport.IsRequired || save.EnabledVehicles?.Contains(transport.Id) == true;
+
+			foreach (var modifier in Modifiers)
+				modifier.Enabled = save.EnabledModifiers?.Contains(modifier.Id) == true;
+
+			foreach (var post in Posts) {
+				// Set the saved item price
+				foreach (var item in post.Items)
+					item.Price = itemDatas?.FirstOrDefault(x => x.Id == item.Id)?.Price ?? item.Price;
+
+				// Set the saved merchant level
+				var savedPost = save.Posts.FirstOrDefault(p => p.Id == post.Id);
+				if (savedPost == null)
+					continue;
+
+				post.MerchantLevel = MerchantLevels.FirstOrDefault(m => m.Level == savedPost.Level) ?? post.MerchantLevel;
+			}
+        }
+
+		private void MapWorld(Action<double, string> progress)
+		{
+			foreach (var region in Regions)
+				World.AddVerticesAndEdgeRange(region.RegionGraph.Edges);
+
+			foreach (var portal in Portals)
 			{
-				var startRegion = e.Regions.FirstOrDefault(r => r.Id.Equals(portal.StartRegionId, StringComparison.OrdinalIgnoreCase));
-				var endRegion = e.Regions.FirstOrDefault(r => r.Id.Equals(portal.EndRegionId, StringComparison.OrdinalIgnoreCase));
+				var startRegion = Regions.FirstOrDefault(r => r.Id.Equals(portal.StartRegionId, StringComparison.OrdinalIgnoreCase));
+				var endRegion = Regions.FirstOrDefault(r => r.Id.Equals(portal.EndRegionId, StringComparison.OrdinalIgnoreCase));
 
 				var startWp = startRegion.Waypoints[portal.StartWaypointId.ToLowerInvariant()];
 				var endWp = endRegion.Waypoints[portal.EndWaypointId.ToLowerInvariant()];
 
-				e.World.AddEdge(new Connection(startWp, endWp, portal.Time));
+				World.AddEdge(new Connection(startWp, endWp, portal.Time));
 			}
 
-			foreach (var p in e.Posts)
+			foreach (var p in Posts)
 			{
-				var region = e.Regions.FirstOrDefault(r => r.Id.Equals(p.WaypointRegion, StringComparison.OrdinalIgnoreCase));
-				var wp = region.Waypoints[p.WaypointId.ToLowerInvariant()];
-
-				p.Waypoint = wp;
+				var region = Regions.FirstOrDefault(r => r.Id.Equals(p.WaypointRegion, StringComparison.OrdinalIgnoreCase))
+					?? throw new Exception("Cannot find region for post " + p);
+				p.Waypoint = region.Waypoints[p.WaypointId.ToLowerInvariant()];
 			}
 
-			double total = e.Posts.Count * (e.Posts.Count - 1);
+			double total = Posts.Count * (Posts.Count - 1);
 			var done = 0;
 
-			foreach (var p in e.Posts)
+			foreach (var p in Posts)
 			{
-				foreach (var p2 in e.Posts)
+				foreach (var p2 in Posts)
 				{
 					if (p2 == p)
 						continue;
 
 					progress(done / total, "Caching route data...");
-					e.Route(p.Waypoint, p2.Waypoint);
+					Route(p.Waypoint, p2.Waypoint);
 					done++;
 				}
 			}
 		}
 
-		private static void InitializeProfits(Erinn e)
+		private void InitializeProfits(List<ItemData>? itemDatas)
 		{
-			List<ProfitData>? profitDatas = null;
-			if (File.Exists("profits.json"))
+            foreach (var p in Posts)
 			{
-				var json = File.ReadAllText("profits.json");
-				profitDatas = JsonSerializer.Deserialize<List<ProfitData>>(json)
-                    ?? throw new Exception("Failed to load profits.");
-			}
-
-            foreach (var p in e.Posts)
-			{
-				var otherPosts = e.Posts.Where(x => x != p).ToList();
+				var otherPosts = Posts.Where(x => x != p).ToList();
 
 				foreach (var i in p.Items)
                 {
-                    var profitData = profitDatas?.Where(x => x.ItemId == i.Id).ToList();
+					var profitData = itemDatas?.FirstOrDefault(x => x.Id == i.Id)?.Profits;
                     
 					foreach (var o in otherPosts)
                     {
-						var profit = profitData?.FirstOrDefault(x => x.DestinationId == o.Id)?.Profit ?? 0;
+						var profit = profitData?.FirstOrDefault(x => x.Destination == o.Id)?.Amount ?? 0;
 						i.Profits.Add(new Profit(o, profit));
 					}
 				}
@@ -222,9 +225,7 @@ namespace MabiCommerce.Domain
 
 		public event PropertyChangedEventHandler? PropertyChanged;
 		private void RaisePropertyChanged([CallerMemberName] string caller = "")
-		{
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(caller));
-        }
+			=> PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(caller));
 
 		public Route Route(Waypoint start, Waypoint end)
 		{
@@ -239,12 +240,10 @@ namespace MabiCommerce.Domain
 
 		private Route CalculateRoute(Waypoint start, Waypoint end)
 		{
-			IEnumerable<Connection> shortestPathResult;
-			if (!(World.ShortestPathsDijkstra(e => e.Time.TotalSeconds, start)(end, out shortestPathResult)))
-				throw new Exception("Cannot locate a path from " + start + " to " + end);
+            if (!World.ShortestPathsDijkstra(e => e.Time.TotalSeconds, start)(end, out IEnumerable<Connection> shortestPathResult))
+                throw new Exception("Cannot locate a path from " + start + " to " + end);
 
-			var waypoints = shortestPathResult.ToList();
-
+            var waypoints = shortestPathResult.ToList();
 			return new Route(waypoints);
 		}
 
@@ -254,16 +253,13 @@ namespace MabiCommerce.Domain
 				return;
 
 			var candidates = post.Items.Where(i => i.Status == ItemStatus.Available && !currentLoad.Slots.ContainsKey(i)).ToList();
-
 			Parallel.ForEach(candidates, i => FillLoadWithItem(loads, post, currentLoad, currentDucts, i));
 		}
 
 		private void FillLoadWithItem(ConcurrentBag<Load> loads, TradingPost post, Load currentLoad, long currentDucats, Item item)
 		{
 			var canAdd = (int)(currentDucats / item.Price);
-
 			var added = AddItemToLoad(loads, post, currentLoad, currentDucats, item, canAdd);
-
 			var excess = added % item.QuantityPerSlot;
 
 			if (added < item.QuantityPerSlot || excess == 0)
@@ -275,13 +271,11 @@ namespace MabiCommerce.Domain
 		private int AddItemToLoad(ConcurrentBag<Load> loads, TradingPost post, Load currentLoad, long currentDucats, Item item, int requested)
 		{
 			var loadCopy = currentLoad.Copy();
-
 			var added = loadCopy.AddItem(item, Math.Min(item.Stock, requested));
 
 			if (added != 0)
 			{
 				loads.Add(loadCopy);
-
 				GetLoads(loads, post, loadCopy, currentDucats - item.Price * added);
 			}
 
@@ -360,8 +354,10 @@ namespace MabiCommerce.Domain
 					if (existing.Any(m => toAdd.ConflictsWith.Contains(m.Id)))
 						continue;
 
-					var newSet = new List<Modifier>(existing);
-					newSet.Add(toAdd);
+					List<Modifier> newSet = new(existing) {
+						toAdd
+					};
+
 					combinations.Add(newSet);
 				}
 			}

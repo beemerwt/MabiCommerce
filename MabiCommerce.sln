@@ -12,6 +12,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".build", ".build", "{3FD0A1
 		.build\MSBuild.Community.Tasks.targets = .build\MSBuild.Community.Tasks.targets
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D940346E-4486-47CD-A70D-C15E3902415E}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -19,6 +24,7 @@ Global
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{8E7F24A1-92A5-40E6-AE13-EA9FB88B5FBA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E7F24A1-92A5-40E6-AE13-EA9FB88B5FBA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8E7F24A1-92A5-40E6-AE13-EA9FB88B5FBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution

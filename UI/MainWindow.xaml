@@ -88,18 +88,9 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition />
                 </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" DataContext="{Binding ElementName=Window}">
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding AutoDetectSupport}" Value="False">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
-                </StackPanel>
+                <DockPanel Grid.Column="0" LastChildFill="False">
+                    <Ellipse Name="Connected" Height="18" Width="18"/>
+                </DockPanel>
                 <TextBlock Grid.Column="1" Foreground="White" VerticalAlignment="Center" Text="By Xcelled194 and Beemer"/>
                 <DockPanel Grid.Column="2" LastChildFill="False">
                     <Button Name="SettingsBtn" DockPanel.Dock="Right" Content="Settings" Click="SettingsBtn_Click" />
@@ -254,7 +245,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <DockPanel Margin="5, 1">
-                                        <TextBox DockPanel.Dock="Right" TextAlignment="Right" Text="{Binding Amount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" MinWidth="50" GotKeyboardFocus="PriceBox_Focused">
+                                        <TextBox DockPanel.Dock="Right" TextAlignment="Right" Text="{Binding Amount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" MinWidth="50" GotFocus="PriceBox_Focused">
                                             <TextBox.Style>
                                                 <Style TargetType="TextBox">
                                                     <Style.Triggers>

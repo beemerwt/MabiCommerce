@@ -1,6 +1,5 @@
 ﻿using System;
 using System.ComponentModel;
-using System.Drawing.Imaging;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -12,22 +11,42 @@ using Emgu.CV.Structure;
 using MabiCommerce.Domain;
 using MabiCommerce.Domain.Trading;
 using Emgu.CV;
-using Emgu.CV.Text;
 using System.Collections.Generic;
 using Emgu.CV.CvEnum;
 using System.Text.Json.Serialization;
 using System.Text.Json;
+using Emgu.CV.OCR;
+
+using Point = System.Drawing.Point;
+using System.Windows.Interop;
+using System.Diagnostics;
+using MabiCommerce.Hotkey;
+using MabiCommerce.Screen;
 
 namespace MabiCommerce.UI
 {
-	/// <summary>
-	/// Interaction logic for MainWindow.xaml
-	/// </summary>
-	public partial class MainWindow : Window
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
 	{
-		public static RoutedCommand SaveCommand = new RoutedCommand();
+		public static RoutedCommand SaveCommand = new();
+
+		// "Inner" window bounds of the trade window (default)
+		// We will change these after detecting each corner of the window
+		// The width and height will remain the same
+		private static Rectangle WindowBounds = new(486, 325, 944, 444);
+
+        // These are offsets relative to the window bounds
+        private static readonly Rectangle PostInfoBounds = new(11, 12, 345, 49);
+		private static readonly Rectangle PostEmblemBounds = new(11, 12, 49, 49);
+
+        private static readonly Rectangle ListBounds = new(600, 104, 67, 169);
+		private static readonly Rectangle ItemBounds = new(10, 0, 342, 57);
 
 		public Erinn Erinn { get; private set; }
+		private HotkeyHelper? HotkeyHelper;
+		private IScreenParser ScreenParser;
 
 		public bool AutoDetectSupport
 		{
@@ -46,30 +65,49 @@ namespace MabiCommerce.UI
 			
 			InitializeComponent();
 
+#if GAME_FONT
+			ScreenParser = new GameFontParser();
+#else
+			ScreenParser = new BitmapFontParser();
+#endif
+
+			HotkeysManager.SetupSystemHook();
+			HotkeysManager.AddHotkey(new GlobalHotkey(ModifierKeys.Control, Key.Up,
+				() => ItemSelect.SelectedIndex = Math.Max(0, ItemSelect.SelectedIndex - 1)));
+			HotkeysManager.AddHotkey(new GlobalHotkey(ModifierKeys.Control, Key.Down,
+				() => ItemSelect.SelectedIndex = Math.Min(ItemSelect.Items.Count - 1, ItemSelect.SelectedIndex + 1)));
+			HotkeysManager.AddHotkey(new GlobalHotkey(ModifierKeys.Control, Key.End,
+				() => RefreshBtn_Click(null, null)));
+
 			DataContext = Erinn = e;
 			SaveCommand.InputGestures.Add(new KeyGesture(Key.S, ModifierKeys.Control));
-		}
 
-		private void WindowBar_MouseDown(object sender, MouseButtonEventArgs e)
+            WinApi.Instance.OnForegroundWindowChanged += Instance_OnForegroundWindowChanged;
+            Connected.Fill = System.Windows.Media.Brushes.Red;
+        }
+
+        private void Instance_OnForegroundWindowChanged()
+        {
+			if (WinApi.IsMabiActive)
+				Connected.Fill = System.Windows.Media.Brushes.Green;
+			else
+				Connected.Fill = System.Windows.Media.Brushes.Red;
+        }
+
+        private void WindowBar_MouseDown(object sender, MouseButtonEventArgs e)
 		{
 			if (e.ChangedButton == MouseButton.Left)
 				DragMove();
 		}
 
 		private void CloseButton_Click(object sender, RoutedEventArgs e)
-		{
-			Close();
-		}
+			=> Close();
 
 		private void MinimizeButton_Click(object sender, RoutedEventArgs e)
-		{
-			WindowState = WindowState.Minimized;
-		}
+			=> WindowState = WindowState.Minimized;
 
 		private void CalculateTrades_Click(object sender, RoutedEventArgs e)
-		{
-			CalculateTrades();
-		}
+			=> CalculateTrades();
 
 		private void MapItButton_Click(object sender, RoutedEventArgs e)
 		{
@@ -107,59 +145,77 @@ namespace MabiCommerce.UI
 			});
         }
 
-        /*
-
-        private Rectangle ListBounds = new Rectangle(1095, 429, 45, 178);
-        private Bitmap CaptureGame()
+		// Must be disposed of afterwards
+        private Bitmap CaptureScreen(Rectangle bounds)
 		{
-            Rectangle bounds = Screen.GetBounds(System.Drawing.Point.Empty);
-			Bitmap bitmap = new Bitmap(ListBounds.Width, ListBounds.Height);
+			Bitmap bitmap = new(bounds.Width, bounds.Height);
             using (Graphics g = Graphics.FromImage(bitmap))
-            {
-                g.CopyFromScreen(ListBounds.Left, ListBounds.Top, 0, 0, ListBounds.Size);
-            }
-			return bitmap;
+                g.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, bounds.Size);
+            return bitmap;
         }
 
-        public List<Rectangle> DetectLetters(Image<Bgr, byte> img)
-        {
-            List<Rectangle> rects = new List<Rectangle>();
-            using Image<Gray, byte> img_gray = img.Convert<Gray, byte>();
-            using Image<Gray, float> img_sobel = img_gray.Sobel(1, 0, 3);
-            img_threshold = new Image<Gray, byte>(img_sobel.Size);
-            CvInvoke.Threshold(img_sobel.Convert<Gray, byte>(), img_threshold, 0, 255, ThresholdType.Otsu);
+        // Must be disposed of afterwards
+        // TODO: Get trade window bounds within WinApi.Instance.ClientBounds
+        // until then we use the default...
+        private Bitmap CaptureTradeWindow()
+			=> CaptureScreen(WindowBounds);
 
-			System.Drawing.Point anchor = new System.Drawing.Point(1, 0);
-            Mat element = CvInvoke.GetStructuringElement(ElementShape.Rectangle, new System.Drawing.Size(6, 8), anchor);
-			CvInvoke.MorphologyEx(img_threshold, img_threshold, MorphOp.Close, element, anchor, 1, BorderType.NegativeOne, new MCvScalar(1));
 
-            Emgu.CV.Util.VectorOfVectorOfPoint contours = new Emgu.CV.Util.VectorOfVectorOfPoint();
-			Mat hier = new Mat();
-			CvInvoke.FindContours(img_threshold, contours, hier, RetrType.External, ChainApproxMethod.ChainApproxSimple);
+		// Seems to be working correctly for bitmap font...
+		private TradingPost? GetPostFromEmblem(Image<Bgr, byte> img)
+		{
+            img.ROI = PostEmblemBounds;
 
-            for (Contour<System.Drawing.Point> contours = img_threshold.FindContours(); contours != null; contours = contours.HNext)
-            {
-                if (contours.Area > 100)
-                {
-                    Contour<System.Drawing.Point> contours_poly = contours.ApproxPoly(3);
-                    rects.Add(new Rectangle(contours_poly.BoundingRectangle.X, contours_poly.BoundingRectangle.Y, contours_poly.BoundingRectangle.Width, contours_poly.BoundingRectangle.Height));
-                }
+			for (int i = 0; i < Erinn.Posts.Count; i++)
+			{
+                using Bitmap bitmap = new(Erinn.Posts[i].Image);
+                using var postEmblem = bitmap.ToImage<Bgr, byte>();
+
+				using var result = img.MatchTemplate(postEmblem, TemplateMatchingType.SqdiffNormed);
+				float[,,] matches = result.Data;
+				for (int y = 0; y < matches.GetLength(0); y++)
+					for (int x = 0; x < matches.GetLength(1); x++)
+						if (matches[y, x, 0] < 0.1)
+							return Erinn.Posts[i];
             }
-            return rects;
-        }
-		*/
+
+			return null;
+		}
 
         private void RefreshBtn_Click(object sender, RoutedEventArgs e)
 		{
 			// Take screenshot and parse the text with opencv
-			// if (!WinApi.IsMabiActive)
-               // return;
+			if (!WinApi.IsMabiActive)
+            {
+                MessageBox.Show("Mabinogi window has not been found. Re-focus the window and try again.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+			}
+
+            using var bitmap = CaptureTradeWindow();
+            using var img = bitmap.ToImage<Bgr, byte>();
+			
+			var post = GetPostFromEmblem(img);
+			if (post == null)
+			{
+				MessageBox.Show("Failed to detect trading post. Make sure you are in the trade window.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+			}
+
+			PostSelect.SelectedItem = post;
+
+            img.ROI = ListBounds;
+            using var gray = img.Convert<Gray, byte>();
+			using var thresholded = gray.ThresholdBinaryInv(new Gray(150), new Gray(255));
+
+			for (int i = 0; i < 7; i++)
+			{
+				var profit = ScreenParser.ParseProfit(thresholded, new Rectangle(0, i * 16 + 1, 64, 7));
+				post.Items[ItemSelect.SelectedIndex].Profits[i].Amount = profit;
+			}
         }
 
 		private void SettingsBtn_Click(object sender, RoutedEventArgs e)
-		{
-			new Settings().ShowDialog();
-		}
+			=> new Settings().ShowDialog();
 
 		private void ItemSelect_TargetUpdated(object sender, System.Windows.Data.DataTransferEventArgs e)
 			=> ItemSelect.SelectedIndex = 0;
@@ -176,9 +232,13 @@ namespace MabiCommerce.UI
 				Erinn.CmRank = newCm;
 
 			App.Splash.Shutdown();
+
+			// Bring into main view
+			App.Current.MainWindow = this;
+			App.Current.MainWindow.Activate();
 		}
 
-		void Window_Closing(object sender, CancelEventArgs e)
+        void Window_Closing(object sender, CancelEventArgs e)
 		{
 #if AUTODETECT
 			Window_Network_Closing(sender, e);
@@ -194,32 +254,36 @@ namespace MabiCommerce.UI
 
         private void Save(object sender, ExecutedRoutedEventArgs e)
         {
-			var profitData = new List<ProfitData>();
-			foreach (var post in Erinn.Posts)
-			{
-				foreach (var item in post.Items)
-				{
-                    foreach (var profit in item.Profits)
-					{
-                        profitData.Add(new ProfitData
-						{
-                            ItemId = item.Id,
-                            DestinationId = profit.Destination.Id,
-                            Profit = profit.Amount
-                        });
-                    }
-                }
-			}
+			List<ItemData> itemData = Erinn.Posts
+				.SelectMany(post => post.Items, (post, item) => new ItemData {
+                    Id = item.Id,
+                    Price = item.Price,
+                    Profits = item.Profits.Select(profit => new ProfitData {
+                        Destination = profit.Destination.Id,
+                        Amount = profit.Amount
+                    }).ToList()
+                }).ToList();
 
-			var json = JsonSerializer.Serialize(profitData, new JsonSerializerOptions { WriteIndented = true });
-			File.WriteAllText("profits.json", json);
+			var vehicles = Erinn.Transports.Where(v => v.Enabled).Select(selector => selector.Id).ToList();
+			var modifiers = Erinn.Modifiers.Where(m => m.Enabled).Select(selector => selector.Id).ToList();
+			var postData = Erinn.Posts.Select(post => new PostData { Id = post.Id, Level = post.MerchantLevel.Level }).ToList();
+
+            var saveData = new SaveData {
+				Ducats = Erinn.Ducats,
+				EnabledVehicles = vehicles,
+				EnabledModifiers = modifiers,
+				Items = itemData,
+				Posts = postData,
+			};
+
+			var json = JsonSerializer.Serialize(saveData, new JsonSerializerOptions { WriteIndented = true });
+			File.WriteAllText("save.json", json);
+        }
+
+        private void PriceBox_Focused(object sender, RoutedEventArgs e)
+        {
+			var textbox = (TextBox)sender;
+			textbox.SelectAll();
         }
     }
-
-	[JsonSerializable(typeof(ProfitData))]
-	class ProfitData {
-		public int ItemId { get; set; }
-        public int DestinationId { get; set; }
-        public int Profit { get; set; }
-	};
 }

@@ -1,8 +1,11 @@
 ﻿using MabiCommerce.Domain;
 using MabiCommerce.UI;
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
@@ -19,20 +22,30 @@ namespace MabiCommerce
 
         public static Splash Splash;
 
+        public static MessageBoxResult MessageBox(string message, string caption = "MabiCommerce",
+            MessageBoxButton buttons = MessageBoxButton.OK, MessageBoxImage image = MessageBoxImage.Information,
+            MessageBoxResult defaultResult = MessageBoxResult.OK)
+        {
+            return System.Windows.MessageBox.Show(message, caption, buttons, image, defaultResult, MessageBoxOptions.DefaultDesktopOnly);
+        }
+
+        private const string EngData = @"https://raw.githubusercontent.com/tesseract-ocr/tessdata/main/eng.traineddata";
+        private const string VersionData = @"https://raw.githubusercontent.com/Xcelled/mabicommerce/master/latest";
+
         private ManualResetEvent? _resetSplashCreated;
         private Thread? _splashThread;
         protected override void OnStartup(StartupEventArgs e)
         {
+#if !DEBUG
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+#endif
 
             // ManualResetEvent acts as a block.  It waits for a signal to be set.
             _resetSplashCreated = new ManualResetEvent(false);
 
             // Create a new thread for the splash screen to run on
             _splashThread = new Thread(ShowSplash);
-#pragma warning disable CA1416 // Validate platform compatibility
             _splashThread.SetApartmentState(ApartmentState.STA);
-#pragma warning restore CA1416 // Validate platform compatibility
             _splashThread.IsBackground = true;
             _splashThread.Start();
 
@@ -41,37 +54,61 @@ namespace MabiCommerce
 
             base.OnStartup(e);
 
-            if (MabiCommerce.Properties.Settings.Default.UpdateCheck)
+            // Download Tessdata
+            if (!Directory.Exists("./tessdata"))
+                Directory.CreateDirectory("./tessdata");
+
+            if (File.Exists("./tessdata/eng.traineddata"))
             {
-                Task.Factory.StartNew(CheckForUpdates);
+                FileInfo info = new("./tessdata/eng.traineddata");
+                if (info.Length < 1024 * 1024 * 20)
+                    File.Delete("./tessdata/eng.traineddata");
+            }
+
+            Task<Task>? download = null;
+            if (!File.Exists("./tessdata/eng.traineddata"))
+            {
+                using var file = File.Create("./tessdata/eng.traineddata");
+                using HttpClient wc = new();
+                try
+                {
+                    var data = wc.GetAsync(EngData);
+                    data.Wait();
+                    data.Result.EnsureSuccessStatusCode();
+
+                    download = data.Result.Content.ReadAsStreamAsync()
+                        .ContinueWith(stream => stream.Result.CopyToAsync(file));
+                } catch (Exception ex)
+                {
+                    MessageBox("Could not download Tessdata. Please download it manually from " + EngData
+                        + " and place it in the tessdata folder.\n\n" + ex.Message, "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
 
             // Environment.CurrentDirectory = Path.GetDirectoryName(typeof(MainWindow).Assembly.Location);
 
+            if (MabiCommerce.Properties.Settings.Default.UpdateCheck)
+                Task.Factory.StartNew(CheckForUpdates);
+
+            download?.Wait();
+
             Erinn? erinn;
             try
             {
-                erinn = Erinn.Load(@"Data", Splash.ReportProgress);
-            } catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
+                if (DesignerProperties.GetIsInDesignMode(new DependencyObject()))
+                {
+                    if (!Directory.Exists("data"))
+                        Environment.CurrentDirectory = Path.GetFullPath("MabiCommerce");
 
-            try
-            {
+                    erinn = new("data");
+                } else
+                    erinn = new(@"Data", Splash.ReportProgress);
 
                 Splash.ReportProgress(1.0, "Loading main window...");
-            } catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
-
-            try
-            {
                 var mw = new MainWindow(erinn);
                 mw.Show();
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 throw new Exception(ex.Message);
             }
@@ -79,7 +116,10 @@ namespace MabiCommerce
 
         private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
-            var w = new UnhandledExceptionWindow(e.ExceptionObject as Exception);
+            if (e.ExceptionObject is not Exception ex)
+                return;
+
+            var w = new UnhandledExceptionWindow(ex);
             w.ShowDialog();
             Shutdown();
             Environment.Exit(1);
@@ -89,18 +129,18 @@ namespace MabiCommerce
         {
             await Task.Delay(5000);
 
+            using var wc = new HttpClient();
+
             try
             {
-                using var wc = new HttpClient();
-                var version = await wc.GetAsync("https://raw.githubusercontent.com/Xcelled/mabicommerce/master/latest")
+                var version = await wc.GetAsync(VersionData)
                     .ContinueWith(x => x.Result.Content.ReadAsStringAsync())
                     .Unwrap();
                 var latest = Version.Parse(version);
-
                 var current = typeof(Settings).Assembly.GetName().Version;
                 if (current < latest)
                 {
-                    if (MessageBox.Show(string.Format(@"There is a new version of MabiCommerce available!
+                    if (MessageBox(string.Format(@"There is a new version of MabiCommerce available!
 
 You're running: {0}
 Latest: {1}
@@ -110,11 +150,11 @@ Would you like to download the new version?", current, latest), "Update Availabl
                         Process.Start(@"https://github.com/Xcelled/mabicommerce");
                     }
                 }
-            }
-            catch
+            } catch
             {
 
             }
+
         }
 
         private void ShowSplash()
